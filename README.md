@@ -17,6 +17,10 @@
 
 ## Артефакты проекта
 
+### Требования
+
+[Требования](docs/requirements/requirements.md)
+
 ### Архитектура решения
 
 ![Архитектура системы](docs/architecture/solution_architecture.png)
@@ -62,6 +66,3 @@
 - GET /forecast/historical-data/ml-model
 
 
-### Требования
-
-[Требования](docs/requirements/requirements.md)
