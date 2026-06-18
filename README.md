@@ -27,13 +27,11 @@
 
 ### Диаграммы последовательностей
 
-- Создание заказа 
-![прием заказа](docs/sequence/прием заказа.png) 
+- Прием заказа 
+![прием заказа](docs/sequence/create_order.png) 
+
 - Резервирование товара 
-![Резервирование товара](docs/sequence/Резервирование товара.png) 
+![Резервирование товара](docs/sequence/goods_reservation.png) 
 
 - Внутреннее перемещение товара
-![Внутреннее перемещение товара](docs/sequence/Внутреннее перемещение товара.png) 
-
-
-## Repository created for system analyst portfolio
+![Внутреннее перемещение товара](docs/sequence/movement_of_goods.png) 
