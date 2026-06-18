@@ -46,8 +46,22 @@
 
 ### OpenAPI
 
-Файл: docs/api/warehouse-api.yaml
+[Swagger/OpenAPI документация](docs/api/warehouse-api.yaml)
+
+Реализованные эндпоинты:
+
+- GET /dashboard/{zoneId}
+- POST /external_system/order
+- POST /external_system/order-status
+- POST /reports
+- GET /reports/data
+- PUT /reports/{reportId}.xlsx
+- GET /notifications/{reportId}.xlsx
+- POST /notifications/emails
+- GET /forecast/historical-data
+- GET /forecast/historical-data/ml-model
+
 
 ### Требования
 
-Файл: docs/requirements/requirements.md
+[Требования](docs/requirements/requirements.md)
