@@ -1,0 +1,798 @@
+openapi: 3.0.4
+info:
+  title: API модуля автоматизации складского учета
+  description: API модуля автоматизации складского учета
+  version: 1.0.0
+servers:
+  - url: http://warehouse-system.swagger.io/api
+tags:
+  - name: dashboard
+    description: Просмотр дашборда зоны
+  - name: external_system
+    description: Внешняя система учета заказов
+  - name: reports
+    description: Система формирования отчетов
+  - name: notifications
+    description: Система уведомлений
+  - name: forecast
+    description: Система прогноза
+paths:
+  /dashboard/{zoneId}:
+    get:
+      tags:
+        - dashboard
+      summary: Просмотр дашборда зоны
+      description: Просмотр дашборда зоны
+      parameters:
+        - name: zoneId
+          in: path
+          description: id зоны
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Данные успешно получены
+          content:
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/DashboardResponse'
+              examples:
+                success_with_forecast:
+                  summary: Успешный ответ с прогнозом
+                  value:
+                    zone_id: 2
+                    zone_name: STORAGE
+                    current_quantity: 1500
+                    forecast:
+                      value: 1300
+                      available: true
+                      message: null
+                success_without_forecast:
+                  summary: Прогноз недоступен
+                  value:
+                    zone_id: 2
+                    zone_name: STORAGE
+                    current_quantity: 1500
+                    forecast:
+                      value: null
+                      available: false
+                      message: "Прогноз временно недоступен"  
+        '404':
+          description: Зона не найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: NOT_FOUND
+                message: Zone not found
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /external_system/order:
+    post:
+      tags:
+        - external_system
+      summary: Прием заказа из внешней системы
+      description: Прием заказа из внешней системы
+      parameters:
+        - name: X-Signature
+          in: header
+          required: true
+          description: HMAC подпись тела запроса
+          schema:
+            type: string
+            example: 5f2d3e7c1a9b4f8c6d2e9a7b8f1c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c
+      requestBody:
+        description: Принять новый заказ
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+            example:
+              order_id: ORD-10001
+              customer:
+                id: CUST-9001
+                email: ivan.ivanov@example.com
+                name: Иван Иванов
+              products:
+                - product_id: PROD-2001
+                  name: Беспроводные наушники
+                  quantity: 1
+                  price: 10000
+                - product_id: PROD-2002
+                  name: Ароматическая свеча
+                  quantity: 2
+                  price: 300
+      responses:
+        '202':
+          description: Заказ принят в обработку
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+              examples:
+                created:
+                  summary: Новый заказ
+                  value:
+                    status: ACCEPTED
+                    message: Order accepted for processing
+                    order_id: 123
+                duplicate:
+                  summary: Заказ уже существует
+                  value:
+                    status: ACCEPTED
+                    message: Order already exists
+                    order_id: 123
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: BAD_REQUEST
+                message: Invalid request payload
+        '403':
+          description: Доступ запрещён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: FORBIDDEN
+                message: Invalid signature
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /external_system/order-status:
+    post:
+      tags:
+        - external_system
+      summary: Уведомление внешней системы о статусе заказа
+      description: Сервис интеграции сообщает внешний системе, что заказ зарезервирован
+      requestBody:
+        description: Заказ зарезервирован
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderStatusWebhook'
+            example:
+              event_type: order_reserved
+              external_order_id: ORD-10001
+              warehouse_order_id: 123
+              status: RESERVED
+              products:
+                - product_id: PROD-2001
+                  quantity: 2
+                - product_id: PROD-2002
+                  quantity: 1
+              reserved_at: "2026-04-24T10:30:00Z"
+      responses:
+        '200':
+          description: Webhook успешно получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookResponse'
+              example:
+                status: OK
+                message: Webhook received
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: BAD_REQUEST
+                message: Invalid request payload
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /reports:
+    post:
+      tags:
+        - reports
+      summary: Запрос отчета пользователем
+      description: Пользователь запрашивает отчет у системы
+      requestBody:
+        description: Запросить отчет
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+            example:
+              period_from: 2024-03-01
+              period_to: 2024-03-07
+      responses:
+        '202':
+          description: Запрос на создание отчета принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+              example:
+                status: ACCEPTED
+                message: Отчет формируется и будет отправлен на почту
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: BAD_REQUEST
+                message: Invalid request payload
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /reports/data:
+    get:
+      tags:
+        - reports
+      summary: Получение данных для формирования отчета
+      description: Система запрашивает данные для отчета у сервиса склада
+      parameters:
+        - name: period_from
+          in: query
+          description: начало периода
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: period_to
+          in: query
+          description: конец периода
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:    
+        '200':
+          description: Данные успешно получены
+          content:
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/DataResponse'
+              example:
+                current_stock: 
+                  - product_id: 1
+                    product_name: Товар A
+                    quantity: 500
+                weekly_outgoing:
+                  - product_id: 1
+                    product_name: Товар A
+                    quantity: 120
+                forecast:
+                  - product_id: 1
+                    product_name: Товар A
+                    quantity: 450
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /reports/{reportId}.xlsx:
+    put:
+      tags:
+        - reports
+      summary: Сохранение файла отчета в хранилище
+      description: Сохранение Excel-файла отчета в хранилище по ID отчета
+      parameters:
+        - name: reportId
+          in: path
+          description: id файла
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Файл успешно сохранен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUrl'
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /notifications/{reportId}.xlsx:
+    get:
+      tags:
+        - notifications
+      summary: Загрузка Excel-файла отчета
+      description: Получение файла из хранилища
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Файл успешно загружен
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Файл не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: NOT_FOUND
+                message: Файл не найден
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /notifications/emails:
+    post:
+      tags:
+        - notifications
+      summary: Отправка файла для email сервиса
+      description: Система отправляет отчет email сервису
+      requestBody:
+        description: Отправить отчет
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToEmailRequest'
+      responses:
+        '200':
+          description: Файл успешно отправлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToEmailResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: BAD_REQUEST
+                message: Invalid request payload
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /forecast/historical-data:
+    get:
+      tags:
+        - forecast
+      summary: Получение исторических данных для расчета прогноза
+      description: ML-модель получает данные для прогноза
+      parameters:
+        - name: from
+          in: query
+          description: начало периода
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: конец периода
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:    
+        '200':
+          description: Данные успешно получены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastData'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: BAD_REQUEST
+                message: Invalid request payload
+        '204':
+          description: Нет данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: NO_CONTENT
+                message: No content
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+  /forecast/historical-data/ml-model:
+    get:
+      tags:
+        - forecast
+      summary: Получение исторических данных для обучения модели
+      description: ML-модель получает данные для обучения
+      parameters:
+        - name: from
+          in: query
+          description: начало периода
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: конец периода
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:    
+        '200':
+          description: Данные успешно получены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastData'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: BAD_REQUEST
+                message: Invalid request payload
+        '204':
+          description: Нет данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: NO_CONTENT
+                message: No content
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+              example:
+                status: ERROR
+                message: Internal server error
+components:
+  schemas:
+    Forecast:
+      type: object
+      required:
+        - available
+      properties:
+        value:
+          type: integer
+          nullable: true
+        available:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+    DashboardResponse:
+      type: object
+      required:
+        - zone_id 
+        - zone_name
+        - current_quantity
+        - forecast
+      properties:
+        zone_id:
+          type: integer
+          example: 1
+        zone_name:
+          type: string
+          example: STORAGE
+        current_quantity:
+          type: integer
+          example: 1500
+        forecast:
+          $ref: '#/components/schemas/Forecast'
+    ResponseError:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+    OrderRequest:
+      type: object
+      required:
+        - order_id
+        - customer
+        - products
+      properties:
+        order_id:
+          type: string
+          example: ORD-10001
+        customer:
+          $ref: '#/components/schemas/Customer'
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+    Customer:
+      type: object
+      required:
+        - id
+        - email
+        - name
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+    Product:
+      type: object
+      required:
+        - product_id
+        - name
+        - quantity
+        - price
+      properties:
+        product_id: 
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: integer
+    OrderResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        order_id:
+          type: integer
+          nullable: true
+    OrderStatusWebhook:
+      type: object
+      required:
+        - order_id
+        - status
+        - message
+        - products
+      properties:
+        order_id:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductWebhook'
+        reserved_at:
+          type: string
+          format: date-time
+    ProductWebhook:
+      type: object
+      required:
+        - product_id
+        - quantity
+      properties:
+        product_id:
+          type: string
+        quantity:
+          type: integer
+    WebhookResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+    ReportRequest:
+      type: object
+      required:
+        - period_from
+        - period_to
+      properties:
+        period_from:
+          type: string
+        period_to:
+          type: string
+    ReportResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+    DataResponse:
+      type: object
+      required:
+        - current_stock
+        - weekly_outgoing
+        - forecast
+      properties:
+        current_stock:
+          type: array
+          items: 
+            $ref: '#/components/schemas/Data'
+        weekly_outgoing:
+          type: array
+          items: 
+            $ref: '#/components/schemas/Data'
+        forecast:
+          type: array
+          items: 
+            $ref: '#/components/schemas/Data'
+    Data:
+      type: object
+      required:
+        - product_id
+        - product_name
+        - quantity
+      properties:
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: integer
+    FileUrl:
+      type: object
+      required:
+        - file_url
+      properties:
+        file_url:
+          type: string
+          example: http://storage/reports/124.xlsx
+    ToEmailRequest:
+      type: object
+      required:
+        - to
+        - subject
+        - body
+        - attachments
+      properties:
+        to:
+          type: array
+          items:
+            type: string
+          example:
+            - ivanov@yandex.ru
+            - petrov@yandex.ru
+        subject:
+          type: string
+          example: Отчет по складу
+        body:
+          type: string
+          example: Отчет сформирован и прикреплен к письму
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+    Attachment:
+      type: object
+      required:
+        - filename
+        - content_type
+        - data
+      properties:
+        filename:
+          type: string
+          example: report_124.xlsx
+        content_type:
+          type: string
+          example: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+        data:
+          type: string
+          example: <base64 encoded file>
+    ToEmailResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: sent
+        messageId:
+          type: string
+          example: email-123456
+    ForecastResponse:
+      type: object
+      properties:
+        date:
+          type: string
+          example: 2024-03-10
+        total_stock:
+          type: integer
+          example: 1200
+        incoming:
+          type: integer
+          example: 150
+        outgoing:
+          type: integer
+          example: 80
+    ForecastData:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForecastResponse'
